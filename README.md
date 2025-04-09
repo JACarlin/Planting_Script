@@ -19,8 +19,6 @@ Herramienta para gestionar programas en el inicio de Windows con interfaz gráfi
 git clone https://github.com/JACarlin/Planting_Script.git
 cd Planting_Script
 
-Copy
-
 2. Crear y activar entorno virtual:
 python -m venv venv
 venv\Scripts\activate
