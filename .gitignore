@@ -1,0 +1,35 @@
+# Entorno virtual
+venv/
+.env/
+ENV/
+
+# Archivos de Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Archivos de IDE
+.vscode/
+.idea/
+*.sublime-workspace
+
+# Archivos temporales
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Archivos del sistema
+Thumbs.db
+.DS_Store
+
+# Ejecutables y archivos sensibles
+*.exe
+*.msi
+*.bat
+.env
+secrets.py
+
+# Archivos específicos de Windows
+Startup/

